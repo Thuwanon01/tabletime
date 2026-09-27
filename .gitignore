@@ -1,0 +1,11 @@
+# Slides from the instructor (not ours to publish)
+homework/
+
+# OS / editor
+.DS_Store
+.claude/settings.local.json
+
+# Secrets
+.env
+.env.*
+!.env.example

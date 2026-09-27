@@ -410,3 +410,6 @@ flowchart LR
 | D18 | รูปร้าน | URL | ไม่ต้องมีที่เก็บไฟล์และการตรวจไฟล์ |
 | D19 | Timezone | `Asia/Bangkok` คงที่ | ระบบใช้ในไทยเท่านั้น |
 | D20 | CD | push image ขึ้น GHCR ไม่ deploy | ได้ artifact ที่นำไปรันได้จริง โดยไม่ต้องดูแล server |
+| D21 | Keycloak ใน compose | `KC_HOSTNAME=http://localhost:8180` + `KC_HOSTNAME_BACKCHANNEL_DYNAMIC`, api เรียก `http://keycloak:8080` แต่ตรวจ issuer เป็น `KEYCLOAK_PUBLIC_URL` (`oidc.InsecureIssuerURLContext`) | browser กับ api เข้าถึง Keycloak คนละ URL แต่ token ต้องมี issuer เดียว ถ้าไม่ทำ login ผ่าน `docker compose up` ไม่ได้ |
+| D22 | secret ใน realm file | ใช้ `${KEYCLOAK_CLIENT_SECRET}` ให้ Keycloak แทนค่าจาก env ตอน import และไม่เก็บ key ของ realm ในไฟล์ | ไม่มี secret จริงใน repo และใช้ค่าเดียวกันทั้ง Keycloak และ api |
+| D23 | login ด้วย username | ปิด `registrationEmailAsUsername` ของ realm | user ทดสอบ login ด้วย `alice` / `bob` / `carol` ได้ (ใช้อีเมลได้ด้วย) |

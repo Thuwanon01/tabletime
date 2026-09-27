@@ -1,0 +1,301 @@
+basePath: /api/v1
+definitions:
+  auth.Credential:
+    properties:
+      accessToken:
+        type: string
+      bearerType:
+        type: string
+      expiresAt:
+        type: string
+      refreshToken:
+        type: string
+    type: object
+  auth.ExchangeRequest:
+    properties:
+      ticket:
+        example: pQx7...base64url...
+        type: string
+    required:
+    - ticket
+    type: object
+  auth.LogoutRequest:
+    properties:
+      refreshToken:
+        example: eyJhbGci...
+        type: string
+    required:
+    - refreshToken
+    type: object
+  auth.RefreshTokenRequest:
+    properties:
+      refreshToken:
+        example: eyJhbGci...
+        type: string
+    required:
+    - refreshToken
+    type: object
+  httputil.ErrorResponse:
+    properties:
+      code:
+        type: string
+      message:
+        type: string
+    type: object
+  user.UpdateUserRequest:
+    properties:
+      bio:
+        example: Home cook who loves spicy food.
+        type: string
+      imageUrl:
+        example: https://images.example.com/avatar.jpg
+        type: string
+    type: object
+  user.UserResponse:
+    properties:
+      bio:
+        example: Home cook who loves spicy food.
+        type: string
+      email:
+        example: somchai@tabletime.local
+        type: string
+      id:
+        example: 3f0c1a7e-2b19-4c5e-9f3a
+        type: string
+      imageUrl:
+        example: https://images.example.com/avatar.jpg
+        type: string
+      name:
+        example: สมชาย ใจดี
+        type: string
+    type: object
+host: localhost:8080
+info:
+  contact: {}
+  description: API สำหรับระบบจองโต๊ะร้านอาหารและรีวิวร้าน
+  title: TableTime API
+  version: "1.0"
+paths:
+  /auth/callback:
+    get:
+      description: Keycloak redirect มาที่นี่เองอัตโนมัติ ไม่ใช่สิ่งที่ frontend เรียกตรงๆ
+      parameters:
+      - description: Authorization code
+        in: query
+        name: code
+        required: true
+        type: string
+      - description: State ที่ตรงกับตอน /auth/login
+        in: query
+        name: state
+        required: true
+        type: string
+      responses:
+        "302":
+          description: Redirect กลับ frontend พร้อม ticket
+          schema:
+            type: string
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+      summary: รับ callback จาก Keycloak
+      tags:
+      - auth
+  /auth/exchange:
+    post:
+      consumes:
+      - application/json
+      description: Frontend เรียกผ่าน axios หลังถูก redirect กลับมาพร้อม ticket
+      parameters:
+      - description: ticket
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.ExchangeRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auth.Credential'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+      summary: แลก ticket เป็น credential จริง
+      tags:
+      - auth
+  /auth/login:
+    get:
+      description: Redirect ไปหน้า login ของ Keycloak
+      responses:
+        "302":
+          description: Redirect ไป Keycloak
+          schema:
+            type: string
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+      summary: เริ่ม login ผ่าน Keycloak
+      tags:
+      - auth
+  /auth/logout:
+    post:
+      consumes:
+      - application/json
+      description: Revoke refresh token ที่ Keycloak จริง
+      parameters:
+      - description: refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.LogoutRequest'
+      responses:
+        "204":
+          description: Logout สำเร็จ
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+        "502":
+          description: Bad Gateway
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: ออกจากระบบ
+      tags:
+      - auth
+  /auth/refresh-token:
+    post:
+      consumes:
+      - application/json
+      description: แลก refresh token เดิมเป็น credential ชุดใหม่จาก Keycloak
+      parameters:
+      - description: refresh token
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/auth.RefreshTokenRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/auth.Credential'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+      summary: ขอ access token ใหม่ด้วย refresh token
+      tags:
+      - auth
+  /users/{id}:
+    get:
+      description: ค้นหาข้อมูล User จาก UUID แล้วคืนข้อมูล User ที่เจอกลับมา
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/user.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: ดึงข้อมูลจาก user แบบรายคน
+      tags:
+      - users
+    put:
+      consumes:
+      - application/json
+      description: แก้ไข imageUrl และ bio ของผู้ใช้ที่กำลังเข้าสู่ระบบ (name และ email
+        มาจาก Keycloak แก้ไขผ่าน API นี้ไม่ได้)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: Updated profile
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/user.UpdateUserRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/user.UserResponse'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/httputil.ErrorResponse'
+      security:
+      - BearerAuth: []
+      summary: แก้ไขข้อมูลโปรไฟล์ผู้ใช้
+      tags:
+      - users
+securityDefinitions:
+  BearerAuth:
+    description: พิมพ์ "Bearer" ตามด้วย space แล้วตามด้วย access token เช่น "Bearer
+      eyJhbGci..."
+    in: header
+    name: Authorization
+    type: apiKey
+swagger: "2.0"

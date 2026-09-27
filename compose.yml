@@ -1,0 +1,96 @@
+# รหัสผ่านและ secret ทั้งหมดอ่านจากไฟล์ .env ที่ root (cp .env.example .env)
+# ถ้ายังไม่มี .env compose จะหยุดพร้อมบอกว่าขาดตัวแปรไหน (รูปแบบ ${ชื่อ:?ข้อความ})
+
+# ตั้งชื่อ project ตายตัว ชื่อ volume จะเป็น tabletime_pgdata ไม่ว่าจะ clone ไว้ในโฟลเดอร์ชื่ออะไร
+name: tabletime
+
+services:
+  postgres:
+    image: postgres:17
+    container_name: tabletime-postgres
+    restart: always
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?copy .env.example to .env}
+      POSTGRES_DB: tabletime
+    ports:
+      - "5532:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.7
+    container_name: tabletime-keycloak
+    restart: always
+    command: ["start-dev", "--import-realm"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:?copy .env.example to .env}
+      KC_HTTP_ENABLED: "true"
+      # URL ที่ browser ใช้ และเป็น issuer ใน token เสมอ
+      KC_HOSTNAME: http://localhost:8180
+      # ให้ api ที่เรียกผ่าน http://keycloak:8080 ได้ URL ของ token/jwks เป็น keycloak:8080 ด้วย
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+      # realm file ใช้ ${KEYCLOAK_CLIENT_SECRET} เป็น secret ของ client tabletime
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET:?copy .env.example to .env}
+    ports:
+      - "8180:8080"
+    volumes:
+      # เก็บข้อมูลของ embedded database (dev-file) ไว้
+      - keycloak-data:/opt/keycloak/data
+      # snapshot ของ realm/client/client scopes/users สำหรับ --import-realm
+      - ./keycloak/import:/opt/keycloak/data/import:ro
+
+  api:
+    build:
+      context: ./api
+      dockerfile: Dockerfile
+    container_name: tabletime-api
+    restart: always
+    depends_on:
+      - postgres
+      - keycloak
+    environment:
+      APP_ENV: development
+      APP_PORT: 8080
+      APP_NAME: tabletime
+      LOG_LEVEL: DEBUG
+      LOG_FORMAT: json
+      # Database (เชื่อมต่อผ่านชื่อ service ในเครือข่าย compose แทน localhost)
+      POSTGRES_DSN: postgres://postgres:${POSTGRES_PASSWORD}@postgres:5432/tabletime?sslmode=disable
+      # Keycloak: api คุยผ่านชื่อ service ส่วน browser และ token ใช้ localhost:8180
+      KEYCLOAK_BASE_URL: http://keycloak:8080
+      KEYCLOAK_PUBLIC_URL: http://localhost:8180
+      KEYCLOAK_REALM: tabletime
+      KEYCLOAK_CLIENT_ID: tabletime
+      KEYCLOAK_CLIENT_SECRET: ${KEYCLOAK_CLIENT_SECRET}
+      KEYCLOAK_REDIRECT_URL: http://localhost:8080/api/v1/auth/callback
+      FRONTEND_URL: http://localhost:3000
+    ports:
+      - "8080:8080"
+
+  web:
+    build:
+      context: ./web
+      dockerfile: Dockerfile
+    container_name: tabletime-web
+    restart: always
+    depends_on:
+      - api
+    environment:
+      NODE_ENV: development
+      # ค่านี้ถูก inline ลงใน client bundle จึงต้องเป็น URL ที่ browser บนเครื่อง host
+      # เรียกถึงได้ ไม่ใช่ http://api:8080 ซึ่งใช้ได้เฉพาะภายในเครือข่าย compose
+      NEXT_PUBLIC_API_BASE_URL: http://localhost:8080/api/v1
+    ports:
+      # ต้องเป็น 3000 เพราะ api ใช้ FRONTEND_URL redirect browser กลับมาที่พอร์ตนี้
+      - "3000:3000"
+    volumes:
+      # bind mount source code เพื่อให้ hot reload ทำงาน
+      - ./web:/app
+      # anonymous volume กัน artifact ที่ build ใน container ถูก bind mount ทับ
+      - /app/node_modules
+      - /app/.next
+
+volumes:
+  pgdata:
+  keycloak-data:

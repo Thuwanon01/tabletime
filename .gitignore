@@ -9,3 +9,8 @@ homework/
 .env
 .env.*
 !.env.example
+
+# Go test output
+*.test
+*.out
+coverage.*
